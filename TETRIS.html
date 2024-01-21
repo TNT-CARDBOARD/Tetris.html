@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tetris</title>
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .game-board {
+      display: grid;
+      grid-template-columns: repeat(10, 30px);
+      grid-gap: 1px;
+      background-color: #ddd;
+    }
+
+    .cell {
+      width: 30px;
+      height: 30px;
+      border: 1px solid #fff;
+      box-sizing: border-box;
+    }
+
+    .filled {
+      background-color: #333;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 10px;
+    }
+
+    .control-button {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .game-over-message {
+      font-size: 24px;
+      margin-top: 20px;
+      color: red;
+    }
+
+    .info-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 10px;
+      border: 2px solid #333;
+      background-color: #fff;
+      border-radius: 5px;
+    }
+
+    .info-item {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="info-panel">
+    <div class="info-item" id="score">Score: 0</div>
+    <div class="info-item">Next Shape:</div>
+    <div id="nextShape"></div>
+  </div>
+<div class="game-board" id="gameBoard"></div>
+  <div class="controls">
+    <div class="control-button" id="left">&#x2190;</div>
+    <div class="control-button" id="rotate">&#x21BB;</div>
+    <div class="control-button" id="down">&#x2193;</div>
+    <div class="control-button" id="right">&#x2192;</div>
+  </div>
+  <div class="game-over-message" id="gameOverMessage"></div>
+
+  <script>
+    const rows = 20;
+    const columns = 10;
+    const board = Array.from({ length: rows }, () => Array(columns).fill(0));
+
+    const shapes = [
+      [[1, 1, 1, 1]], // I-shape
+      [[1, 1, 1], [1, 0, 0]], // L-shape
+      [[1, 1, 1], [0, 0, 1]], // J-shape
+      [[1, 1, 0], [1, 1, 0]], // O-shape
+      [[1, 1, 1], [0, 1, 0]], // T-shape
+      [[1, 1, 1], [1, 0, 0]], // Z-shape   
+      [[1, 1, 0], [0, 1, 1]],
+      [[0, 1, 1], [1, 1, 0]],
+    ];
+
+    let currentShape = getRandomShape();
+    let nextShape = getRandomShape();
+    let currentRow = 0;
+    let currentCol = Math.floor((columns - currentShape[0].length) / 2);
+    let speed = 500; // Initial speed in milliseconds
+    let score = 0;
+    let gameRunning = true;
+
+    function getRandomShape() {
+      const randomIndex = Math.floor(Math.random() * shapes.length);
+      return shapes[randomIndex].map(row => [...row]);
+    }
+
+    function drawBoard() {
+      const gameBoard = document.getElementById('gameBoard');
+      gameBoard.innerHTML = '';
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+          const cell = document.createElement('div');
+          cell.className = `cell ${board[row][col] ? 'filled' : ''}`;
+          gameBoard.appendChild(cell);
+        }
+      }
+    }
+
+    function drawShape() {
+      currentShape.forEach((row, i) => {
+        row.forEach((cell, j) => {
+          if (cell) {
+            const rowPos = currentRow + i;
+            const colPos = currentCol + j;
+            if (rowPos >= 0 && rowPos < rows && colPos >= 0 && colPos < columns) {
+              board[rowPos][colPos] = 1;
+            }
+          }
+        });
+      });
+    }
+
+    function drawNextShape() {
+      const nextShapeContainer = document.getElementById('nextShape');
+      nextShapeContainer.innerHTML = '';
+
+      nextShape.forEach(row => {
+        const rowElement = document.createElement('div');
+        rowElement.className = 'info-item';
+        nextShapeContainer.appendChild(rowElement);
+
+        row.forEach(cell => {
+          const cellElement = document.createElement('div');
+          cellElement.className = `cell ${cell ? 'filled' : ''}`;
+          rowElement.appendChild(cellElement);
+        });
+      });
+    }
+
+    function clearShape() {
+      currentShape.forEach((row, i) => {
+        row.forEach((cell, j) => {
+          if (cell) {
+            const rowPos = currentRow + i;
+            const colPos = currentCol + j;
+            if (rowPos >= 0 && rowPos < rows && colPos >= 0 && colPos < columns) {
+              board[rowPos][colPos] = 0;
+            }
+          }
+        });
+      });
+    }
+
+    function moveDown() {
+      if (!gameRunning) return;
+
+      clearShape();
+      if (!checkCollision(1, 0)) {
+        currentRow++;
+      } else {
+        // Lock the shape in place when it reaches the bottom or overlaps with another
+        drawShape();
+        clearFullRows();
+        currentShape = nextShape;
+        nextShape = getRandomShape();
+        currentRow = 0;
+        currentCol = Math.floor((columns - currentShape[0].length) / 2);
+
+        if (checkCollision(0, 0) || checkOverlap()) {
+          // Game over when the new shape cannot be placed
+          gameRunning = false;
+          document.getElementById('gameOverMessage').innerText = 'Game Over';
+        }
+      }
+      drawShape();
+      drawNextShape();
+    }
+
+    function moveLeft() {
+      if (!gameRunning) return;
+
+      clearShape();
+      if (!checkCollision(0, -1)) {
+        currentCol--;
+      }
+      drawShape();
+    }
+
+    function moveRight() {
+      if (!gameRunning) return;
+
+      clearShape();
+      if (!checkCollision(0, 1)) {
+        currentCol++;
+      }
+      drawShape();
+    }
+
+    function rotate() {
+      if (!gameRunning) return;
+
+      clearShape();
+      const rotatedShape = rotateShape(currentShape);
+      if (!checkCollision(0, 0, rotatedShape)) {
+        currentShape = rotatedShape;
+      }
+      drawShape();
+    }
+
+    function rotateShape(shape) {
+      const rotatedShape = [];
+      const rows = shape.length;
+      const cols = shape[0].length;
+
+      for (let i = 0; i < cols; i++) {
+        rotatedShape[i] = [];
+        for (let j = 0; j < rows; j++) {
+          rotatedShape[i][j] = shape[rows - 1 - j][i];
+        }
+      }
+
+      return rotatedShape;
+    }
+
+    function checkCollision(offsetRow, offsetCol, newShape = currentShape) {
+      for (let i = 0; i < newShape.length; i++) {
+        for (let j = 0; j < newShape[i].length; j++) {
+          const rowPos = currentRow + i + offsetRow;
+          const colPos = currentCol + j + offsetCol;
+
+          if (
+            newShape[i][j] &&
+            (rowPos >= rows || colPos < 0 || colPos >= columns || board[rowPos][colPos])
+          ) {
+            return true; // Collision detected
+          }
+        }
+      }
+      return false; // No collision
+    }
+
+    function checkOverlap() {
+      for (let i = 0; i < currentShape.length; i++) {
+        for (let j = 0; j < currentShape[i].length; j++) {
+          const rowPos = currentRow + i;
+          const colPos = currentCol + j;
+
+          if (currentShape[i][j] && board[rowPos][colPos]) {
+            return true; // Overlapping detected
+          }
+        }
+      }
+      return false; // No overlap
+    }
+
+    function clearFullRows() {
+      let rowsCleared = 0;
+      for (let row = rows - 1; row >= 0; row--) {
+        if (board[row].every(cell => cell)) {
+          // Clear the full row and move all above rows down
+          board.splice(row, 1);
+          board.unshift(Array(columns).fill(0));
+          rowsCleared++;
+        }
+      }
+
+      // Increase score based on the number of rows cleared
+      score += rowsCleared;
+      document.getElementById('score').innerText = `Score: ${score}`;
+
+      // Increase speed after clearing rows
+      speed = Math.max(100, speed - 20 * rowsCleared); // Ensure speed doesn't go below 100
+    }
+
+    function update() {
+      if (gameRunning) {
+        drawBoard();
+        setTimeout(() => {
+          moveDown();
+          update();
+        }, speed);
+      }
+    }
+
+    // Touch event handlers
+    const leftButton = document.getElementById('left');
+    const rotateButton = document.getElementById('rotate');
+    const downButton = document.getElementById('down');
+    const rightButton = document.getElementById('right');
+
+    leftButton.addEventListener('touchstart', () => moveLeft());
+    rotateButton.addEventListener('touchstart', () => rotate());
+    downButton.addEventListener('touchstart', () => moveDown());
+    rightButton.addEventListener('touchstart', () => moveRight());
+
+    // Start the game loop
+    update();
+  </script>
+</body>
+</html>
